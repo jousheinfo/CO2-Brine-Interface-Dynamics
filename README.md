@@ -1,4 +1,4 @@
-# PINN_Journal – Stiff CO₂–Brine Sharp-Interface ODE (FDM vs PINNs + Transfer Learning)
+# Stiff CO₂–Brine Sharp-Interface ODE (FDM vs PINNs + Transfer Learning)
 
 This project solves a **highly nonlinear stiff ODE** governing the **dimensionless CO₂–brine interface** \(h_{aD}(\chi)\) dynamics, parameterized by the mobility ratio \(M\) and gravity number \(\Gamma\), under **immiscible flow** and **negligible capillarity** assumptions.
 
