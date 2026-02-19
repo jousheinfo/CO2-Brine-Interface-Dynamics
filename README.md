@@ -6,7 +6,7 @@ We compare:
 - **Finite Difference Methods (FDM)**: forward / backward / central discretizations (tested in analytically benchmarked cases), and  
 - **Physics-Informed Neural Networks (PINNs)**: validated against the analytical solution in the regime \(\Gamma < 0.5\), then optimized and extended via **transfer learning** to stiffer regimes.
 
-> **Note:** This repository accompanies a submitted manuscript.  
+> **Note:** This repository accompanies a submitted manuscript (under review).  
 > Please cite the paper if you use any part of this code for research.
 
 ---
