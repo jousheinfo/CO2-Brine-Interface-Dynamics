@@ -7,8 +7,8 @@ Created on Thu Jan 29 10:21:47 2026
 
 
 # ============================================================
-# Grid Search + Validation: PINN vs Analytical (same chi grid)
-# Output folder: runs_validation_PINN_base_case
+# Best Grid Search with Gradient-Based Adaptive Weighting: PINN vs Analytical (same chi grid)
+# Output folder: runs_validation_PINN_adaptive_gradient_based_weighting_loss_best_grid_search
 #
 # Requirements implemented:
 # (1) Every 1000 epochs: save snapshot plot (PINN + Okwen only) per pair
@@ -19,10 +19,9 @@ Created on Thu Jan 29 10:21:47 2026
 # ============================================================
 
 # ============================================================
-# Grid Search + Validation: PINN vs Analytical (same chi grid)
-# Output folder: runs_validation_PINN_base_case
+# Best Grid Search with Gradient-Based Adaptive Weighting: PINN vs Analytical (same chi grid)
+# Output folder: runs_validation_PINN_adaptive_gradient_based_weighting_loss_best_grid_search
 #
-
 # Requirements implemented:
 # (1) Every 1000 epochs: save snapshot plot (PINN + Okwen only) per pair
 # (2) Final per-pair plot: 3 subplots:
@@ -58,9 +57,6 @@ def set_random_seeds(seed=42):
     np.random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
-        # Keep deterministic settings minimal for performance
-        # torch.backends.cudnn.deterministic = True  # Commented out for speed
-        # torch.backends.cudnn.benchmark = False  # Commented out for speed
 
 
 # ============================================================
@@ -171,6 +167,13 @@ class PINNSolver:
         self.snap_dirs = []
         self.pair_dirs = []
         
+        # Adaptive weighting parameters
+        self.weight_update_frequency = 100  # Update weights every N epochs
+        self.weight_smoothing_factor = 0.1  # Moving average smoothing
+        self.initial_weights = {'ode': 1.0, 'boundary': 1.0, 'integral': 1.0}
+        self.loss_weights = self.initial_weights.copy()
+        print("Using gradient-based adaptive loss weighting")
+        
         for idx, (M, Gamma) in enumerate(zip(M_values, Gamma_values)):
             pair_folder = os.path.join(self.output_dir, f"pair_{idx+1}_M{M}_Gamma{Gamma}")
             
@@ -252,8 +255,93 @@ class PINNSolver:
         integral_result = torch.trapz(integral_values.squeeze(), chi.squeeze())
         integral_loss = torch.mean((integral_result - 2) ** 2)
 
-        total_loss = ODE_loss + boundary_loss + integral_loss
+        # Apply adaptive weights
+        weighted_ode_loss = self.loss_weights['ode'] * ODE_loss
+        weighted_boundary_loss = self.loss_weights['boundary'] * boundary_loss
+        weighted_integral_loss = self.loss_weights['integral'] * integral_loss
+        
+        total_loss = weighted_ode_loss + weighted_boundary_loss + weighted_integral_loss
         return total_loss, integral_result, ODE_loss, boundary_loss, integral_loss
+
+    def update_adaptive_weights(self, model, chi, M, Gamma):
+        """Update loss weights based on gradient magnitudes"""
+        eps = 1e-8  # Small number to prevent division by zero
+        
+        # Clear previous gradients
+        model.zero_grad()
+        
+        # Compute ODE loss and its gradients
+        chi_grad = chi.requires_grad_(True).float()
+        h_aD = model(chi_grad)
+        h_aD_chi = torch.autograd.grad(h_aD, chi_grad, grad_outputs=torch.ones_like(h_aD), create_graph=True)[0]
+        
+        term1 = -chi_grad * h_aD_chi
+        F_h_aD = h_aD / (h_aD + M * (1 - h_aD))
+        G_h_aD = M * h_aD * (1 - h_aD) / (h_aD + M * (1 - h_aD))
+        P = F_h_aD - G_h_aD * 2 * Gamma * chi_grad * h_aD_chi
+        P_chi = torch.autograd.grad(P, chi_grad, grad_outputs=torch.ones_like(P), create_graph=True)[0]
+        term2 = 2 * P_chi
+        ODE_loss = torch.mean((term1 + term2) ** 2)
+        ODE_loss.backward(retain_graph=True)
+        
+        # Collect ODE gradients
+        ode_grads = []
+        for param in model.parameters():
+            if param.grad is not None:
+                ode_grads.append(param.grad.view(-1))
+        ode_grad_norm = torch.sqrt(sum(torch.sum(g**2) for g in ode_grads)) if ode_grads else torch.tensor(0.0, device=chi_grad.device)
+        
+        # Clear gradients for next computation
+        model.zero_grad()
+        
+        # Compute boundary loss and its gradients
+        chi_min_tensor = torch.tensor([[self.chi_min]], dtype=torch.float, device=chi_grad.device)
+        chi_max_tensor = torch.tensor([[chi.max()]], dtype=torch.float, device=chi_grad.device)
+        h_aD_min = model(chi_min_tensor)
+        h_aD_max = model(chi_max_tensor)
+        boundary_loss = (h_aD_min - 0) ** 2 + (h_aD_max - 1) ** 2
+        boundary_loss.backward(retain_graph=True)
+        
+        # Collect boundary gradients
+        boundary_grads = []
+        for param in model.parameters():
+            if param.grad is not None:
+                boundary_grads.append(param.grad.view(-1))
+        boundary_grad_norm = torch.sqrt(sum(torch.sum(g**2) for g in boundary_grads)) if boundary_grads else torch.tensor(0.0, device=chi_grad.device)
+        
+        # Clear gradients for next computation
+        model.zero_grad()
+        
+        # Compute integral loss and its gradients
+        integral_values = 1 - h_aD
+        integral_result = torch.trapz(integral_values.squeeze(), chi_grad.squeeze())
+        integral_loss = torch.mean((integral_result - 2) ** 2)
+        integral_loss.backward(retain_graph=True)
+        
+        # Collect integral gradients
+        integral_grads = []
+        for param in model.parameters():
+            if param.grad is not None:
+                integral_grads.append(param.grad.view(-1))
+        integral_grad_norm = torch.sqrt(sum(torch.sum(g**2) for g in integral_grads)) if integral_grads else torch.tensor(0.0, device=chi_grad.device)
+        
+        # Update weights inversely proportional to gradient magnitudes
+        total_norm = ode_grad_norm + boundary_grad_norm + integral_grad_norm
+        
+        w_ode = total_norm / (3 * (ode_grad_norm + eps))
+        w_boundary = total_norm / (3 * (boundary_grad_norm + eps))
+        w_integral = total_norm / (3 * (integral_grad_norm + eps))
+        
+        # Apply smoothing to prevent sudden weight changes
+        self.loss_weights['ode'] = (1 - self.weight_smoothing_factor) * self.loss_weights['ode'] + self.weight_smoothing_factor * w_ode.item()
+        self.loss_weights['boundary'] = (1 - self.weight_smoothing_factor) * self.loss_weights['boundary'] + self.weight_smoothing_factor * w_boundary.item()
+        self.loss_weights['integral'] = (1 - self.weight_smoothing_factor) * self.loss_weights['integral'] + self.weight_smoothing_factor * w_integral.item()
+        
+        # Apply weight constraints to prevent extreme values
+        max_weight = 10.0
+        min_weight = 0.1
+        for key in self.loss_weights:
+            self.loss_weights[key] = max(min_weight, min(max_weight, self.loss_weights[key]))
 
     def add_plot_annotations(self, ax):
         """Add plot annotations with automatic best location"""
@@ -311,7 +399,7 @@ class PINNSolver:
     
         # Create a 2x2 subplot
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-        fig.suptitle(f"Final Solution | M={M}, Γ={Gamma} | Total Loss: {current_total_loss:.2e}", fontsize=14)
+        fig.suptitle(f"PINN Solution | M={M}, Γ={Gamma} | Configuration: {self.layers}, {self.activation_function} | Total Loss: {current_total_loss:.2e}", fontsize=14)
     
         # --- Top-left: PINN + Okwen
         ax1 = axes[0, 0]
@@ -434,7 +522,7 @@ class PINNSolver:
         ax2.set_yscale("log")
         ax2.set_xlabel("Epoch", fontsize=12)
         ax2.set_ylabel("Boundary Loss", fontsize=12)
-        ax2.set_title("Boundary Loss (h=0, h=1)", fontsize=14)
+        ax2.set_title(r"Boundary Loss ($h_{min}=0$, $h_{max}=1$)", fontsize=14)
         ax2.grid(True, which="both", alpha=0.3)
 
         # Integral loss
@@ -559,7 +647,7 @@ class PINNSolver:
                 with open(json_file, 'w') as f:
                     json.dump(loss_data, f, indent=2)
                 
-                print(f"✅ Saved loss histories to {json_file}")
+                print(f"Saved loss histories to {json_file}")
                 
                 # Save final PINN solution
                 model = self.models[device][pair_idx]
@@ -577,7 +665,7 @@ class PINNSolver:
                 with open(solution_file, 'w') as f:
                     json.dump(solution_data, f, indent=2)
                 
-                print(f"✅ Saved PINN solution to {solution_file}")
+                print(f"Saved PINN solution to {solution_file}")
 
     def save_summary(self):
         summary_filename = os.path.join(self.output_dir, "training_summary_validation.txt")
@@ -636,6 +724,16 @@ class PINNSolver:
                     self.ode_loss_history[device][i].append(ode_loss.item())
                     self.boundary_loss_history[device][i].append(boundary_loss.item())
                     self.integral_loss_history[device][i].append(integral_loss.item())
+                    
+                    # Update adaptive weights periodically
+                    if epoch % self.weight_update_frequency == 0:
+                        self.update_adaptive_weights(model, chi, M, Gamma)
+                        
+                        # Print weight updates for monitoring
+                        if epoch % (self.weight_update_frequency * 5) == 0:  # Print every 5th update
+                            print(f"[GRAD_WEIGHTS] Epoch {epoch} | ODE: {self.loss_weights['ode']:.3f}, "
+                                  f"BC: {self.loss_weights['boundary']:.3f}, "
+                                  f"Integral: {self.loss_weights['integral']:.3f}")
                     
                     # Early stopping logic: check if tolerance is reached
                     if self.tolerance_reached_epochs[device][i] is None and loss.item() <= self.tol:
@@ -769,21 +867,21 @@ def create_summary_dataframe(main_output_dir):
 
 
 # ============================================================
-# MAIN: GRID SEARCH
+# MAIN: BEST GRID SEARCH WITH GRADIENT-BASED ADAPTIVE WEIGHTING
 # ============================================================
 if __name__ == "__main__":
 
     # Set random seeds for reproducibility
     set_random_seeds(42)
 
-    main_output_dir = "runs_validation_PINN_base_case"
+    main_output_dir = "runs_validation_PINN_adaptive_gradient_based_weighting_loss_best_grid_search"
 
     # Two pairs
     test_M = [6.0, 6.0]
     test_Gamma = [0.1, 0.4]
 
     # Grid search
-    layer_options = [[16, 16, 16]]
+    layer_options = [[32, 32, 32]]
     activation_functions = ["tanh"]
     optimizer_name = "Adam"
 
