@@ -3,6 +3,7 @@
 Created on Mon Feb 02 10:21:47 2026
 
 @author: jpauya1
+<<<<<<< HEAD
 
 This script implements transfer learning (warm-start) to train PINN models on new Gamma
 values using pre-trained models from previous Gamma values as starting points.
@@ -18,6 +19,11 @@ Features:
 6) Saves loss histories and solutions to JSON for analysis
 """
 
+=======
+"""
+
+
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 import os
 import re
 import glob
@@ -43,9 +49,12 @@ def set_random_seeds(seed=42):
     np.random.seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+<<<<<<< HEAD
         # Keep deterministic settings minimal for performance
         # torch.backends.cudnn.deterministic = True  # Commented out for speed
         # torch.backends.cudnn.benchmark = False  # Commented out for speed
+=======
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
 
 # ============================================================
@@ -57,14 +66,23 @@ def compute_chi_max_okwen(M, Gamma):
 
 def is_okwen_valid(M, Gamma):
     """
+<<<<<<< HEAD
     Check if M and Gamma values are within valid range for Okwen correlation.
     Based on correlation range: 5.0 < M < 20.0, 0.5 < Gamma < 50.0
+=======
+    Check if M and Gamma values are within the valid range for Okwen correlation.
+    Based on the correlation range: 0.5 <= M <= 10, 0.1 <= Gamma <= 0.5
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     """
     return (5.0 < M < 20.0) and (0.5 < Gamma < 50.0)
 
 
 # ============================================================
+<<<<<<< HEAD
 # PINN model definition
+=======
+# PINN model (same as your grid-search)
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 # ============================================================
 class PINN(nn.Module):
     def __init__(self, layers, activation_function, init_seed=None):
@@ -106,6 +124,7 @@ class PINN(nn.Module):
 # ============================================================
 # Robust pretrained finder (prints folder contents)
 # ============================================================
+<<<<<<< HEAD
 def find_best_pretrained_pair_folder(grid_search_root, run_dir_name):
     """Automatically find the best available pretrained pair folder"""
     run_dir_path = os.path.join(grid_search_root, run_dir_name)
@@ -133,15 +152,23 @@ def find_best_pretrained_pair_folder(grid_search_root, run_dir_name):
     return os.path.join(run_dir_path, best_pair)
 
 
+=======
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 def find_pretrained_pth_from_pair_folder(pair_folder_path: str) -> str:
     p = Path(pair_folder_path)
 
     if not p.exists() or not p.is_dir():
         raise FileNotFoundError(f"Pair folder does not exist:\n{pair_folder_path}")
 
+<<<<<<< HEAD
     print("\n🔍 DEBUG: pair folder path used by Python:")
     print("   ", str(p.resolve()))
     print("🔍 DEBUG: folder contents:")
+=======
+    print("\nDEBUG: pair folder path used by Python:")
+    print("   ", str(p.resolve()))
+    print("DEBUG: folder contents:")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     for item in sorted(p.iterdir()):
         print("   -", item.name)
 
@@ -154,7 +181,11 @@ def find_pretrained_pth_from_pair_folder(pair_folder_path: str) -> str:
         )
 
     candidates.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+<<<<<<< HEAD
     print("\n✅ Found checkpoint:")
+=======
+    print("\nFound checkpoint:")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     print("   ", str(candidates[0]))
     return str(candidates[0])
 
@@ -172,7 +203,11 @@ class TransferLearningPINNSolver:
                  optimizer_name="Adam",
                  learning_rate=1e-5,
                  chi_min=0.0,
+<<<<<<< HEAD
                  N=10000,
+=======
+                 N=100000,
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
                  epochs=50000,
                  tol=1e-5,
                  snapshot_every=1000,
@@ -224,7 +259,11 @@ class TransferLearningPINNSolver:
         else:
             raise ValueError("Unsupported checkpoint format (expected dict).")
 
+<<<<<<< HEAD
         print(f"✅ Loaded pretrained weights from:\n   {pretrained_path}")
+=======
+        print(f"Loaded pretrained weights from:\n   {pretrained_path}")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
         # Fresh optimizer
         self.optimizer = self._get_optimizer()
@@ -255,7 +294,11 @@ class TransferLearningPINNSolver:
         self.tolerance_reached_epoch = None
         self.early_stop_epoch = None
 
+<<<<<<< HEAD
         print("\n🚀 Transfer-learning solver initialized")
+=======
+        print("\nTransfer-learning solver initialized")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         print(f"   Target: M={self.M}, Γ={self.Gamma}")
         print(f"   Device: {self.device}")
         print(f"   χ_max(init)=2M={self.chi_max}")
@@ -559,10 +602,17 @@ class TransferLearningPINNSolver:
         # Final plots (outside snapshots)
         self.save_final_4panel_plot(final_epoch)
 
+<<<<<<< HEAD
         print(f"✅ Saved transfer-learning outputs to:\n   {self.output_dir}")
 
     def train(self):
         print("\n🎯 Training (transfer learning) started...")
+=======
+        print(f"Saved transfer-learning outputs to:\n   {self.output_dir}")
+
+    def train(self):
+        print("\nTraining (transfer learning) started...")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         t0 = time.time()
 
         final_epoch_ran = 0
@@ -609,7 +659,11 @@ class TransferLearningPINNSolver:
                 break
 
         dt = time.time() - t0
+<<<<<<< HEAD
         print(f"✅ Training completed in {dt:.2f} s")
+=======
+        print(f"Training completed in {dt:.2f} s")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
         # Save all final outputs + the two final plots outside snapshots/
         self.save_final_files(final_epoch_ran)
@@ -634,10 +688,17 @@ def main():
     # NEW: delete ALL previous outputs and recreate root each run
     # ------------------------------------------------------------------
     if TRANSFER_OUT_ROOT.exists():
+<<<<<<< HEAD
         print(f"🧹 Deleting existing output folder:\n   {TRANSFER_OUT_ROOT}")
         shutil.rmtree(TRANSFER_OUT_ROOT)
     TRANSFER_OUT_ROOT.mkdir(parents=True, exist_ok=True)
     print(f"📁 Fresh output folder created:\n   {TRANSFER_OUT_ROOT}")
+=======
+        print(f"Deleting existing output folder:\n   {TRANSFER_OUT_ROOT}")
+        shutil.rmtree(TRANSFER_OUT_ROOT)
+    TRANSFER_OUT_ROOT.mkdir(parents=True, exist_ok=True)
+    print(f"Fresh output folder created:\n   {TRANSFER_OUT_ROOT}")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     
     # ------------------------------------------------------------------
     # 1) WHERE YOUR GRID-SEARCH OUTPUTS LIVE (root)
@@ -648,11 +709,23 @@ def main():
     BEST_ACT = "tanh"
     RUN_DIR_NAME = f"run_layers_{str(BEST_LAYERS).replace(' ', '')}_act_{BEST_ACT}"
 
+<<<<<<< HEAD
     # pretrained: automatically find the best available pair
     PRETRAINED_PAIR_FOLDER = find_best_pretrained_pair_folder(GRID_SEARCH_ROOT, RUN_DIR_NAME)
 
     pretrained_pth = find_pretrained_pth_from_pair_folder(PRETRAINED_PAIR_FOLDER)
     print("\n🎯 Using pretrained checkpoint:\n   ", pretrained_pth)
+=======
+    # pretrained specifically from pair 2: M=5.0, Gamma=0.4
+    PRETRAINED_PAIR_FOLDER = os.path.join(
+        GRID_SEARCH_ROOT,
+        RUN_DIR_NAME,
+        "pair_2_M6.0_Gamma0.4"
+    )
+
+    pretrained_pth = find_pretrained_pth_from_pair_folder(PRETRAINED_PAIR_FOLDER)
+    print("\nUsing pretrained checkpoint:\n   ", pretrained_pth)
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     # ------------------------------------------------------------------
     # 2) TRANSFER TARGETS (EDIT THIS LIST)
@@ -666,7 +739,11 @@ def main():
     # ------------------------------------------------------------------
     # 3) TRAINING HYPERPARAMS (MATCH GRID SEARCH)
     # ------------------------------------------------------------------
+<<<<<<< HEAD
     N = 10000
+=======
+    N = 100000
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     epochs = 50000
     lr = 1e-5
     tol = 1e-5
@@ -707,7 +784,11 @@ def main():
 
         solver.train()
 
+<<<<<<< HEAD
     print("\n🎉 All transfer-learning runs completed.")
+=======
+    print("\nAll transfer-learning runs completed.")
+>>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     print("Outputs saved under:\n  ", str(TRANSFER_OUT_ROOT))
 
 

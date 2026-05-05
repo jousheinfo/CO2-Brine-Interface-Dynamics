@@ -7,8 +7,8 @@ Created on Thu Jan 29 10:21:47 2026
 
 
 # ============================================================
-# Validation: PINN vs Analytical (same chi grid)
-# Output folder: runs_validation_PINN_base_case
+# Grid Search + Validation: PINN vs Analytical (same chi grid)
+# Output folder: runs_validation_PINN_base_case_grid_search
 #
 # Requirements implemented:
 # (1) Every 1000 epochs: save snapshot plot (PINN + Okwen only) per pair
@@ -19,8 +19,8 @@ Created on Thu Jan 29 10:21:47 2026
 # ============================================================
 
 # ============================================================
-# Validation: PINN vs Analytical (same chi grid)
-# Output folder: runs_validation_PINN_base_case
+# Grid Search + Validation: PINN vs Analytical (same chi grid)
+# Output folder: runs_validation_PINN_base_case_grid_search
 #
 
 # Requirements implemented:
@@ -45,11 +45,6 @@ import numpy as np
 import multiprocessing as mp
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor, as_completed
-<<<<<<< HEAD
-import json
-import re
-=======
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -64,6 +59,7 @@ def set_random_seeds(seed=42):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
 
+
 # ============================================================
 # Okwen correlation (KEEP)
 # ============================================================
@@ -73,13 +69,8 @@ def compute_chi_max(M, Gamma):
 
 def is_okwen_valid(M, Gamma):
     """
-<<<<<<< HEAD
-    Check if M and Gamma values are within valid range for Okwen correlation.
-    Based on correlation range: 5.0 < M < 20.0, 0.5 < Gamma < 50.0
-=======
     Check if M and Gamma values are within the valid range for Okwen correlation.
     Based on the correlation range: 0.5 <= M <= 10, 0.1 <= Gamma <= 0.5
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     """
     return (5.0 < M < 20.0) and (0.5 < Gamma < 50.0)
 
@@ -114,7 +105,9 @@ class PINN(nn.Module):
     def __init__(self, layers, activation_function, init_seed=None):
         super().__init__()
         activation_map = {
-            "tanh": nn.Tanh()
+            "tanh": nn.Tanh(),
+            "gelu": nn.GELU(),
+            "swish": nn.SiLU()
         }
         if activation_function not in activation_map:
             raise ValueError(f"Unknown activation_function: {activation_function}")
@@ -152,11 +145,7 @@ class PINN(nn.Module):
 # Solver class
 # ============================================================
 class PINNSolver:
-<<<<<<< HEAD
-    def __init__(self, M_values, Gamma_values, layers, activation_function, optimizer_name, output_dir, chi_min=0.0, N=100000, epochs=50000, learning_rate=1e-5, tol=1e-5, init_seed=42, snapshot_every=1000, error_eval_points=5000, additional_epochs_after_tolerance=5000):
-=======
     def __init__(self, M_values, Gamma_values, layers, activation_function, optimizer_name, output_dir, chi_min=0.0, N=100000, epochs=50000, learning_rate=1e-5, tol=1e-5, init_seed=42, snapshot_every=1000, error_eval_points=10000, additional_epochs_after_tolerance=5000):
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         super().__init__()
 
         self.layers = layers
@@ -321,7 +310,7 @@ class PINNSolver:
     
         # Create a 2x2 subplot
         fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-        fig.suptitle(f"Final Solution | M={M}, Γ={Gamma} | Total Loss: {current_total_loss:.2e}", fontsize=14)
+        fig.suptitle(f"PINN Solution | M={M}, Γ={Gamma} | Configuration: {self.layers}, {self.activation_function} | Total Loss: {current_total_loss:.2e}", fontsize=14)
     
         # --- Top-left: PINN + Okwen
         ax1 = axes[0, 0]
@@ -444,7 +433,7 @@ class PINNSolver:
         ax2.set_yscale("log")
         ax2.set_xlabel("Epoch", fontsize=12)
         ax2.set_ylabel("Boundary Loss", fontsize=12)
-        ax2.set_title("Boundary Loss (h=0, h=1)", fontsize=14)
+        ax2.set_title(r"Boundary Loss ($h_{min}=0$, $h_{max}=1$)", fontsize=14)
         ax2.grid(True, which="both", alpha=0.3)
 
         # Integral loss
@@ -469,11 +458,7 @@ class PINNSolver:
         out_path = os.path.join(self.pair_dirs[pair_index], f"LOSS_COMPONENTS_pair_{pair_index+1}_M_{M}_Gamma_{Gamma}_{device}.png")
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
         plt.show()
-<<<<<<< HEAD
-
-=======
         plt.close(fig)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     # ============================================================
     # (2) Final per-pair plot: 3 subplots
@@ -498,11 +483,7 @@ class PINNSolver:
         err_hist = np.array(self.error_history[device][pair_index], dtype=float)
 
         # Layout: 2 columns on top, 1 centered bottom
-<<<<<<< HEAD
-        fig = plt.figure(figsize=(12, 8))
-=======
         fig = plt.figure(figsize=(14, 9))
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         gs = fig.add_gridspec(2, 2, height_ratios=[1, 1])
 
         ax_sol = fig.add_subplot(gs[0, 0])
@@ -518,57 +499,33 @@ class PINNSolver:
             okwen_point = compute_chi_max(M, Gamma)
             ax_sol.plot(okwen_point, 1, 'o', color="brown", markersize=9, markerfacecolor="green", label="Okwen")
         
-<<<<<<< HEAD
-        ax_sol.set_xlabel(r"$\chi$", fontsize=16)
-        ax_sol.set_ylabel(r"$h_{aD}(\chi)$", fontsize=16)
-        ax_sol.set_title(fr"PINN Solution | $M={M}$, $\Gamma={Gamma}$", fontsize=18)
-        ax_sol.grid(True, alpha=0.3)
-        ax_sol.legend(loc="lower right", fontsize=14)
-=======
         ax_sol.set_xlabel(r"$\chi$", fontsize=13)
         ax_sol.set_ylabel(r"$h_{aD}(\chi)$", fontsize=13)
         ax_sol.set_title(fr"PINN Solution | $M={M}$, $\Gamma={Gamma}$", fontsize=14)
         ax_sol.grid(True, alpha=0.3)
         ax_sol.legend(loc="lower right", fontsize=10)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
         # --- top-right loss
         ax_loss.plot(loss_hist, color="violet", linewidth=2.0)
         ax_loss.set_yscale("log")
-<<<<<<< HEAD
-        ax_loss.set_xlabel("Epoch", fontsize=16)
-        ax_loss.set_ylabel("Total Loss", fontsize=16)
-        ax_loss.set_title("Total Loss", fontsize=18)
-=======
         ax_loss.set_xlabel("Epoch", fontsize=13)
         ax_loss.set_ylabel("Total Loss", fontsize=13)
         ax_loss.set_title("Total Loss", fontsize=14)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         ax_loss.grid(True, which="both", alpha=0.3)
         self.add_plot_annotations(ax_loss)
 
         # --- bottom error history
         ax_err.plot(err_hist, color="green", linewidth=2.0)
-<<<<<<< HEAD
-        ax_err.set_xlabel("Epoch", fontsize=16)
-        ax_err.set_ylabel(r"$L_2(h_{\mathrm{PINN}}-h_{\mathrm{analytical}})$", fontsize=16)
-        ax_err.set_title("Error History (Analytical vs PINN)", fontsize=18)
-=======
         ax_err.set_xlabel("Epoch", fontsize=13)
         ax_err.set_ylabel(r"$L_2(h_{\mathrm{PINN}}-h_{\mathrm{analytical}})$", fontsize=13)
         ax_err.set_title("Error History (Analytical vs PINN)", fontsize=14)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         ax_err.grid(True, alpha=0.3)
 
         plt.tight_layout()
         out_path = os.path.join(self.pair_dirs[pair_index], f"FINAL_3PANEL_pair_{pair_index+1}_M_{M}_Gamma_{Gamma}_{device}.png")
         plt.savefig(out_path, dpi=300, bbox_inches="tight")
         plt.show()
-<<<<<<< HEAD
-        
-=======
         plt.close(fig)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     def save_loss_histories_to_json(self):
         """Save loss histories to JSON files for comparison"""
@@ -724,6 +681,12 @@ class PINNSolver:
                     print(f"[{device}] saving snapshots at epoch={epoch}")
                     for pair_idx in range(len(self.M_values)):
                         self.save_snapshot_plot(device, epoch, pair_idx)
+                        # Save model weights for transfer learning
+                        model = self.models[device][pair_idx]
+                        model_filename = f"model_layers_{self.layers}_act_{self.activation_function}_M{self.M_values[pair_idx]}_Gamma{self.Gamma_values[pair_idx]}.pth"
+                        model_path = os.path.join(self.snap_dirs[pair_idx], model_filename)
+                        torch.save(model.state_dict(), model_path)
+                        print(f"[{device}] Saved model to {model_path}")
     
             # Track total training time for each device
             self.device_times[device] = time.time() - start_time
@@ -731,6 +694,16 @@ class PINNSolver:
     
         # Save summary after training
         self.save_summary()
+        
+        # Save final models for transfer learning (after all training is complete)
+        print(f"[FINAL_SAVING] Saving final models for transfer learning...")
+        for device in self.devices:
+            for pair_idx in range(len(self.M_values)):
+                model = self.models[device][pair_idx]
+                model_filename = f"model_layers_{self.layers}_act_{self.activation_function}_M{self.M_values[pair_idx]}_Gamma{self.Gamma_values[pair_idx]}_FINAL.pth"
+                model_path = os.path.join(self.snap_dirs[pair_idx], model_filename)
+                torch.save(model.state_dict(), model_path)
+                print(f"[{device}] Saved FINAL model to {model_path}")
         
         # Save loss histories to JSON for comparison
         self.save_loss_histories_to_json()
@@ -749,20 +722,9 @@ class PINNSolver:
 # Results aggregation (lightweight)
 # ============================================================
 def parse_run_dir(run_dir):
-<<<<<<< HEAD
-    """
-    Expected format:
-    run_N_10000_layers_[16,16,16]_act_tanh
-    """
-    parts = run_dir.split('_')
-    N_value = int(parts[2])
-    layers_str = parts[4]
-    activation = parts[6]
-=======
     parts = run_dir.split('_')
     layers_str = parts[2]
     activation = parts[4]
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     layers = eval(layers_str)
     return layers, activation
 
@@ -774,11 +736,7 @@ def create_summary_dataframe(main_output_dir):
             continue
 
         try:
-<<<<<<< HEAD
-            N_value, layers, activation = parse_run_dir(run_dir)
-=======
             layers, activation = parse_run_dir(run_dir)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
         except Exception:
             continue
 
@@ -806,10 +764,6 @@ def create_summary_dataframe(main_output_dir):
 
                     results.append({
                         "Directory": run_dir,
-<<<<<<< HEAD
-                        "N_collocation": N_value,
-=======
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
                         "Layers": str(layers),
                         "Activation": activation,
                         "Device": device,
@@ -829,211 +783,34 @@ def create_summary_dataframe(main_output_dir):
     return pd.DataFrame(results)
 
 
-<<<<<<< HEAD
-def plot_N_sensitivity(main_output_dir, M_target, Gamma_target):
-    """
-    Create a 3-panel comparison plot for different collocation sizes N.
-
-    Panel 1: Final PINN solution for each N + analytical solution
-    Panel 2: Total loss history for each N
-    Panel 3: Error history for each N
-
-    Assumes each run folder contains:
-      pair_1_M{M}_Gamma{Gamma}/loss_histories.json
-      pair_1_M{M}_Gamma{Gamma}/solution_data.json
-    """
-
-    color_map = {
-        10000: "blue",
-        50000: "green",
-        100000: "violet"
-    }
-
-    run_data = []
-
-    for run_dir in os.listdir(main_output_dir):
-        full_run_path = os.path.join(main_output_dir, run_dir)
-        if not os.path.isdir(full_run_path):
-            continue
-
-        match = re.match(r"run_N_(\d+)_layers_(\[[^\]]+\])_act_(.+)", run_dir)
-        if not match:
-            continue
-
-        N_value = int(match.group(1))
-
-        pair_dir = os.path.join(
-            full_run_path,
-            f"pair_1_M{M_target}_Gamma{Gamma_target}"
-        )
-
-        loss_file = os.path.join(pair_dir, "loss_histories.json")
-        sol_file = os.path.join(pair_dir, "solution_data.json")
-
-        if not (os.path.exists(loss_file) and os.path.exists(sol_file)):
-            print(f"[WARN] Missing saved JSON files for N={N_value} in {pair_dir}")
-            continue
-
-        with open(loss_file, "r") as f:
-            loss_data = json.load(f)
-
-        with open(sol_file, "r") as f:
-            sol_data = json.load(f)
-
-        chi = np.array(sol_data["chi"], dtype=float)
-        h_pinn = np.array(sol_data["h_pinn"], dtype=float)
-        total_loss = np.array(loss_data["total_loss"], dtype=float)
-        error_history = np.array(loss_data["error_history"], dtype=float)
-
-        run_data.append({
-            "N": N_value,
-            "chi": chi,
-            "h_pinn": h_pinn,
-            "total_loss": total_loss,
-            "error_history": error_history
-        })
-
-    if not run_data:
-        print("[WARNING] No run data found for N-comparison plot.")
-        return
-
-    run_data = sorted(run_data, key=lambda x: x["N"])
-
-    # Analytical solution from first chi grid
-    chi_ref = run_data[0]["chi"]
-    h_ana = h_analytical(chi_ref, M_target)
-
-    fig = plt.figure(figsize=(12, 8))
-    gs = fig.add_gridspec(2, 2, height_ratios=[1, 1])
-
-    ax_sol = fig.add_subplot(gs[0, 0])
-    ax_loss = fig.add_subplot(gs[0, 1])
-    ax_err = fig.add_subplot(gs[1, :])
-
-    # -----------------------------
-    # Panel 1: Solution comparison
-    # -----------------------------
-    for item in run_data:
-        N_value = item["N"]
-        color = color_map.get(N_value, None)
-        ax_sol.plot(
-            item["chi"], item["h_pinn"],
-            color=color,
-            linewidth=2.0,
-            label=fr"PINN ($N={N_value}$)"
-        )
-
-    ax_sol.plot(
-        chi_ref, h_ana,
-        color="red",
-        linewidth=2.2,
-        linestyle="-",
-        label="Analytical"
-    )
-
-    ax_sol.set_xlabel(r"$\chi$", fontsize=16)
-    ax_sol.set_ylabel(r"$h_{aD}(\chi)$", fontsize=16)
-    ax_sol.set_title(fr"PINN Solution | $M={M_target}$, $\Gamma={Gamma_target}$", fontsize=18)
-    ax_sol.grid(True, alpha=0.3)
-    ax_sol.legend(fontsize=14, loc="lower right")
-
-    # -----------------------------
-    # Panel 2: Total loss histories
-    # -----------------------------
-    for item in run_data:
-        N_value = item["N"]
-        color = color_map.get(N_value, None)
-        epochs = np.arange(1, len(item["total_loss"]) + 1)
-
-        ax_loss.plot(
-            epochs, item["total_loss"],
-            color=color,
-            linewidth=2.0,
-            label=fr"$N={N_value}$"
-        )
-
-    ax_loss.set_yscale("log")
-    ax_loss.set_xlabel("Epoch", fontsize=16)
-    ax_loss.set_ylabel("Total Loss", fontsize=16)
-    ax_loss.set_title("Total Loss History", fontsize=18)
-    ax_loss.grid(True, which="both", alpha=0.3)
-    ax_loss.legend(fontsize=14)
-
-    # -----------------------------
-    # Panel 3: Error histories
-    # -----------------------------
-    for item in run_data:
-        N_value = item["N"]
-        color = color_map.get(N_value, None)
-        epochs = np.arange(1, len(item["error_history"]) + 1)
-
-        ax_err.plot(
-            epochs, item["error_history"],
-            color=color,
-            linewidth=2.0,
-            label=fr"$N={N_value}$"
-        )
-
-    ax_err.set_xlabel("Epoch", fontsize=16)
-    ax_err.set_ylabel(r"$L_2(h_{\mathrm{PINN}}-h_{\mathrm{analytical}})$", fontsize=16)
-    ax_err.set_title("Error History (Analytical vs PINN)", fontsize=18)
-    ax_err.grid(True, alpha=0.3)
-    ax_err.legend(fontsize=14)
-
-    plt.tight_layout()
-    out_path = os.path.join(
-        main_output_dir,
-        f"N_comparison_3panel_M{M_target}_Gamma{Gamma_target}.png"
-    )
-    plt.savefig(out_path, dpi=300, bbox_inches="tight")
-    plt.show()
-
-    print(f"[INFO] Saved N-comparison figure to: {out_path}")
-    
-    
-=======
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 # ============================================================
-# MAIN: Validation Base Case
+# MAIN: GRID SEARCH
 # ============================================================
 if __name__ == "__main__":
 
     # Set random seeds for reproducibility
     set_random_seeds(42)
 
-    main_output_dir = "runs_validation_PINN_base_case"
+    main_output_dir = "runs_validation_PINN_base_case_grid_search"
 
     # Two pairs
-<<<<<<< HEAD
-    test_M = [6.0]
-    test_Gamma = [0.4]
-=======
     test_M = [6.0, 6.0]
     test_Gamma = [0.1, 0.4]
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     # Grid search
-    layer_options = [[16, 16, 16]]
-    activation_functions = ["tanh"]
+    layer_options = [[8, 8, 8], [16, 16, 16], [32, 32, 32]]
+    activation_functions = ["tanh", "gelu", "swish"]
     optimizer_name = "Adam"
 
     # Training hyperparams
-<<<<<<< HEAD
-    N_values = [10000, 50000, 100000]
-=======
     N = 100000
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
     epochs = 50000
     lr = 1e-5
     tol = 1e-5
     INIT_SEED = 42
 
     snapshot_every = 1000
-<<<<<<< HEAD
-    error_eval_points = 5000
-=======
     error_eval_points = 10000
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     # Create main output directory fresh
     if os.path.exists(main_output_dir):
@@ -1044,60 +821,6 @@ if __name__ == "__main__":
     best_config = None
     best_run_dir = None
 
-<<<<<<< HEAD
-    for N in N_values:
-        for layers, activation in itertools.product(layer_options, activation_functions):
-    
-            layers_str = str(layers).replace(" ", "")
-            run_dir = f"run_N_{N}_layers_{layers_str}_act_{activation}"
-            full_run_dir = os.path.join(main_output_dir, run_dir)
-    
-            print("\n====================================================")
-            print(f"RUN: N={N}, layers={layers}, activation={activation}")
-            print("====================================================")
-    
-            try:
-                solver = PINNSolver(
-                    init_seed=INIT_SEED,
-                    M_values=test_M,
-                    Gamma_values=test_Gamma,
-                    layers=layers,
-                    activation_function=activation,
-                    optimizer_name=optimizer_name,
-                    output_dir=full_run_dir,
-                    chi_min=0.0,
-                    N=N,
-                    epochs=epochs,
-                    learning_rate=lr,
-                    tol=tol,
-                    snapshot_every=snapshot_every,
-                    error_eval_points=error_eval_points,
-                    additional_epochs_after_tolerance=5000
-                )
-    
-                solver.train()
-    
-                device = solver.devices[0]
-                final_losses = [solver.loss_history[device][i][-1] for i in range(len(test_M))]
-                avg_final_loss = float(np.mean(final_losses))
-    
-                print(f"AVG final loss: {avg_final_loss:.3e}")
-    
-                if avg_final_loss < best_loss:
-                    best_loss = avg_final_loss
-                    best_config = (N, layers, activation)
-                    best_run_dir = full_run_dir
-    
-            except Exception as e:
-                print(f"FAILED config N={N}, layers={layers}, activation={activation} | error: {e}")
-    
-            finally:
-                if "solver" in locals():
-                    del solver
-                gc.collect()
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-=======
     for layers, activation in itertools.product(layer_options, activation_functions):
 
         layers_str = str(layers).replace(" ", "")
@@ -1150,17 +873,10 @@ if __name__ == "__main__":
             gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     # Aggregate run summaries into CSV
     df = create_summary_dataframe(main_output_dir)
     df.to_csv(os.path.join(main_output_dir, "results_summary_validation_PINN_base_case.csv"), index=False)
-<<<<<<< HEAD
-    
-    # Plot N-sensitivity
-    plot_N_sensitivity(main_output_dir=main_output_dir, M_target=6.0,Gamma_target=0.4)
-=======
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
 
     print("\n================== BEST CONFIG ==================")
     print(f"Best config: {best_config}")
@@ -1169,8 +885,4 @@ if __name__ == "__main__":
     print("=================================================\n")
 
     print("Saved CSV:", os.path.join(main_output_dir, "results_summary_validation_PINN_base_case.csv"))
-<<<<<<< HEAD
     print("All outputs saved under:", main_output_dir)
-=======
-    print("All outputs saved under:", main_output_dir)
->>>>>>> a3aa7e2bb0a5f6dba1a84d97ac65c798bd6d7f75
